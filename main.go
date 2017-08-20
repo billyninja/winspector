@@ -6,15 +6,16 @@ import (
 	"go/parser"
 	"go/token"
 	//"go/types"
+	"github.com/veandco/go-sdl2/sdl"
 	"reflect"
 	"runtime"
 	"time"
+	//	"github.com/veandco/go-sdl2/sdl_ttf"
 	//"os"
 	//"bufio"
 )
 
 var TMAP map[string]int
-
 
 func Init() {
 	TMAP = make(map[string]int)
@@ -31,21 +32,16 @@ func Init() {
 	TMAP["slice"] = 24
 }
 
-func Probe(){
+func Probe() {
 	Init()
 
 	_, file, _, ok := runtime.Caller(1)
-
-	println(file)
-	println(file)
-	println(file)
-	println(file)
 
 	if !ok {
 		panic("not possible to get to the caller")
 	}
 
-	fset := token.NewFileSet()  // positions are relative to fset
+	fset := token.NewFileSet() // positions are relative to fset
 	f_ast, err := parser.ParseFile(fset, file, nil, 0)
 	if err != nil {
 		panic(err)
@@ -53,63 +49,80 @@ func Probe(){
 
 	for _, dc := range f_ast.Decls {
 		switch tt := dc.(type) {
-			case *ast.GenDecl:
-				if tt.Tok.String() == "type" {
-					for _, sp := range tt.Specs {
-						switch ti := sp.(type) {
-							case *ast.TypeSpec:
-								fmt.Printf("%+v\n", ti.Name)
-								switch tj := ti.Type.(type) {
-									case *ast.StructType:
-										stSize := 0
-										complete := true
+		case *ast.GenDecl:
+			if tt.Tok.String() == "type" {
+				for _, sp := range tt.Specs {
+					switch ti := sp.(type) {
+					case *ast.TypeSpec:
+						fmt.Printf("%+v\n", ti.Name)
+						switch tj := ti.Type.(type) {
+						case *ast.StructType:
+							stSize := 0
+							complete := true
 
-										fmt.Printf("\n\nit's a struct...\n")
-										fmt.Printf("Fields\n")
-										for _, fld := range tj.Fields.List {
-											fmt.Printf("\t%s %s\n", fld.Names[0], fld.Type)
-											switch id := fld.Type.(type) {
-												case *ast.Ident:
-													if val, ok := TMAP[id.String()]; ok {
-														stSize += val
-													} else {
-														fmt.Printf("\t\t\n >>>%s not found \n", id.String())
-														complete = false
-													}
-												case *ast.StarExpr:
-													stSize += TMAP["ptr"]
-												case *ast.SliceExpr:
-													stSize += TMAP["slice"]
-												case *ast.ArrayType:
-													stSize += TMAP["slice"]
-												default:
-													complete = false
-													fmt.Printf("\nunknown expr %s\n\n", id)
-											}
-										}
-										fmt.Printf("\n\n\nTotal Size: %d, %t\n\n\n", stSize, complete)
-										if complete {
-											TMAP[ti.Name.String()] = stSize
-										}
+							fmt.Printf("\n\nit's a struct...\n")
+							fmt.Printf("Fields\n")
+
+							stBlk := &Block{
+								Height: 64,
+								Label:  ti.Name.String(),
+							}
+
+							for _, fld := range tj.Fields.List {
+								fmt.Printf("\t%s %s\n", fld.Names[0], fld.Type)
+								switch id := fld.Type.(type) {
+								case *ast.Ident:
+									if val, ok := TMAP[id.String()]; ok {
+										stSize += val
+									} else {
+										fmt.Printf("\t\t\n >>>%s not found \n", id.String())
+										complete = false
+									}
+								case *ast.StarExpr:
+									stSize += TMAP["ptr"]
+								case *ast.SliceExpr:
+									stSize += TMAP["slice"]
+								case *ast.ArrayType:
+									stSize += TMAP["slice"]
+								default:
+									complete = false
+									fmt.Printf("\nunknown expr %s\n\n", id)
 								}
-						}
-					}
-				}
+							}
+							fmt.Printf("\n\n\nTotal Size: %d, %t\n\n\n", stSize, complete)
+							if complete {
+								TMAP[ti.Name.String()] = stSize
+							}
 
-				if tt.Tok.String() == "var" {
-					for _, sp := range tt.Specs {
-						switch ti := sp.(type) {
-							case *ast.ValueSpec:
-								fmt.Printf("%+v\n", ti)
-								fmt.Printf("%+v\n", ti.Names[0])
-								fmt.Printf("%+v\n", sp)
+							stBlk.Width = int32(stSize * 8)
+							stBlk.Color = Color{255, 0, 0, 255}
+							rootBlocks = append(rootBlocks, stBlk)
 						}
 					}
 				}
+			}
+
+			surf, _ := sdl.CreateRGBSurface(0, 1024, 768, 32, 0x000000FF, 0x0000FF00, 0x00FF0000, 0xFF000000)
+			rend, _ := sdl.CreateSoftwareRenderer(surf)
+			for _, rb := range rootBlocks {
+				rend.SetDrawColor(rb.Color.R, rb.Color.G, rb.Color.B, rb.Color.A)
+				rect := &sdl.Rect{rb.X, rb.Y, rb.Width, rb.Height}
+				rend.DrawRect(rect)
+			}
+
+			if tt.Tok.String() == "var" {
+				for _, sp := range tt.Specs {
+					switch ti := sp.(type) {
+					case *ast.ValueSpec:
+						fmt.Printf("%+v\n", ti)
+						fmt.Printf("%+v\n", ti.Names[0])
+						fmt.Printf("%+v\n", sp)
+					}
+				}
+			}
 		}
 	}
 }
-
 
 type Color struct {
 	R uint8
@@ -119,10 +132,10 @@ type Color struct {
 }
 
 type Block struct {
-	Width    float32
-	Height   float32
-	X        float32
-	Y        float32
+	Width    int32
+	Height   int32
+	X        int32
+	Y        int32
 	Label    string
 	Color    Color
 	Parent   *Block
@@ -159,7 +172,6 @@ func main() {
 
 	for {
 		Probe()
-		return
 
 		T := reflect.TypeOf(*m)
 		insp(T)
@@ -169,7 +181,6 @@ func main() {
 
 		V := reflect.ValueOf(*b)
 		fmt.Printf("\nM> %s %+v", V.Kind(), V.NumMethod())
-		return
 
 		runtime.ReadMemStats(m)
 		fmt.Printf("\nMem: %dMB // %dGC", m.Sys/(1024*1024), m.NumGC)
