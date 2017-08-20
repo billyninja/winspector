@@ -1,4 +1,4 @@
-package main
+package winspector
 
 import (
 	"fmt"
@@ -15,8 +15,32 @@ import (
 
 var TMAP map[string]int
 
-func intro(){
-	_, file, _, ok := runtime.Caller(0)
+
+func Init() {
+	TMAP = make(map[string]int)
+	TMAP["uint8"] = 1
+	TMAP["bool"] = 1
+	TMAP["float32"] = 4
+	TMAP["int32"] = 4
+	TMAP["uint32"] = 4
+	TMAP["uint64"] = 8
+	TMAP["int64"] = 8
+	TMAP["float64"] = 8
+	TMAP["ptr"] = 8
+	TMAP["string"] = 16
+	TMAP["slice"] = 24
+}
+
+func Probe(){
+	Init()
+
+	_, file, _, ok := runtime.Caller(1)
+
+	println(file)
+	println(file)
+	println(file)
+	println(file)
+
 	if !ok {
 		panic("not possible to get to the caller")
 	}
@@ -127,18 +151,6 @@ func insp(T reflect.Type) {
 }
 
 func main() {
-	TMAP = make(map[string]int)
-	TMAP["uint8"] = 1
-	TMAP["bool"] = 1
-	TMAP["float32"] = 4
-	TMAP["int32"] = 4
-	TMAP["uint32"] = 4
-	TMAP["uint64"] = 8
-	TMAP["int64"] = 8
-	TMAP["float64"] = 8
-	TMAP["ptr"] = 8
-	TMAP["string"] = 16
-	TMAP["slice"] = 24
 
 	m := &runtime.MemStats{}
 	b := &Block{
@@ -146,7 +158,7 @@ func main() {
 	}
 
 	for {
-		intro()
+		Probe()
 		return
 
 		T := reflect.TypeOf(*m)
