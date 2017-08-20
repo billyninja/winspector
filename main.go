@@ -16,8 +16,13 @@ import (
 var TMAP map[string]int
 
 func intro(){
+	_, file, _, ok := runtime.Caller(0)
+	if !ok {
+		panic("not possible to get to the caller")
+	}
+
 	fset := token.NewFileSet()  // positions are relative to fset
-	f_ast, err := parser.ParseFile(fset, "main.go", nil, 0)
+	f_ast, err := parser.ParseFile(fset, file, nil, 0)
 	if err != nil {
 		panic(err)
 	}
@@ -38,8 +43,7 @@ func intro(){
 										fmt.Printf("\n\nit's a struct...\n")
 										fmt.Printf("Fields\n")
 										for _, fld := range tj.Fields.List {
-											fmt.Printf(" > %+v", fld.Type)
-											fmt.Printf("\t%+v\n", fld.Names[0])
+											fmt.Printf("\t%s %s\n", fld.Names[0], fld.Type)
 											switch id := fld.Type.(type) {
 												case *ast.Ident:
 													if val, ok := TMAP[id.String()]; ok {
@@ -48,6 +52,15 @@ func intro(){
 														fmt.Printf("\t\t\n >>>%s not found \n", id.String())
 														complete = false
 													}
+												case *ast.StarExpr:
+													stSize += TMAP["ptr"]
+												case *ast.SliceExpr:
+													stSize += TMAP["slice"]
+												case *ast.ArrayType:
+													stSize += TMAP["slice"]
+												default:
+													complete = false
+													fmt.Printf("\nunknown expr %s\n\n", id)
 											}
 										}
 										fmt.Printf("\n\n\nTotal Size: %d, %t\n\n\n", stSize, complete)
