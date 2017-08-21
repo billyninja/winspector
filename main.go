@@ -16,10 +16,10 @@ import (
 	//"bufio"
 )
 
-var TMAP map[string]int
+var TMAP map[string]uint32
 
 func Init() {
-	TMAP = make(map[string]int)
+	TMAP = make(map[string]uint32)
 	TMAP["uint8"] = 1
 	TMAP["bool"] = 1
 	TMAP["float32"] = 4
@@ -58,7 +58,6 @@ func Probe() {
 						fmt.Printf("%+v\n", ti.Name)
 						switch tj := ti.Type.(type) {
 						case *ast.StructType:
-							stSize := 0
 							complete := true
 
 							fmt.Printf("\n\nit's a struct...\n")
@@ -70,33 +69,56 @@ func Probe() {
 							}
 
 							for _, fld := range tj.Fields.List {
+
+								fldBlk := &Block{
+									Height: 64,
+									Label:  fld.Names[0].String(),
+								}
+
 								fmt.Printf("\t%s %s\n", fld.Names[0], fld.Type)
+
 								switch id := fld.Type.(type) {
 								case *ast.Ident:
 									if val, ok := TMAP[id.String()]; ok {
-										stSize += val
+										fldBlk.Size = val
+										stBlk.Size += fldBlk.Size
 									} else {
 										fmt.Printf("\t\t\n >>>%s not found \n", id.String())
 										complete = false
 									}
 								case *ast.StarExpr:
-									stSize += TMAP["ptr"]
+									fldBlk.Size = TMAP["ptr"]
+									stBlk.Size += fldBlk.Size
+									fldBlk.Label += " (ptr)"
 								case *ast.SliceExpr:
-									stSize += TMAP["slice"]
+									fldBlk.Size = TMAP["slice"]
+									stBlk.Size += fldBlk.Size
+									fldBlk.Label += " (slice)"
 								case *ast.ArrayType:
-									stSize += TMAP["slice"]
+									fldBlk.Size = TMAP["slice"]
+									stBlk.Size += fldBlk.Size
+									fldBlk.Label += " (slice)"
 								default:
 									complete = false
 									fmt.Printf("\nunknown expr %s\n\n", id)
 								}
+
+								stBlk.Children = append(stBlk.Children, fldBlk)
 							}
-							fmt.Printf("\n\n\nTotal Size: %d, %t\n\n\n", stSize, complete)
+							fmt.Printf("\n\n\nTotal Size: %d, %t\n\n\n", stBlk.Size, complete)
 							if complete {
-								TMAP[ti.Name.String()] = stSize
+								TMAP[ti.Name.String()] = stBlk.Size
+							}
+							if len(rootBlocks) == 0 {
+								stBlk.Color = Color{255, 0, 0, 255}
+							}
+							if len(rootBlocks) == 1 {
+								stBlk.Color = Color{0, 255, 0, 255}
+							}
+							if len(rootBlocks) == 2 {
+								stBlk.Color = Color{0, 0, 255, 255}
 							}
 
-							stBlk.Width = int32(stSize * 8)
-							stBlk.Color = Color{255, 0, 0, 255}
 							rootBlocks = append(rootBlocks, stBlk)
 						}
 					}
@@ -111,12 +133,22 @@ func Probe() {
 
 			var lastX int32
 			for _, rb := range rootBlocks {
-				rect := &sdl.Rect{rb.X + lastX + 10, 10, rb.Width, rb.Height}
+				stWidth := int32(rb.Size * 8)
+
+				rect := &sdl.Rect{rb.X + lastX + 30, 10, stWidth, rb.Height}
 				rend.SetDrawColor(rb.Color.R, rb.Color.G, rb.Color.B, rb.Color.A)
 				rend.FillRect(rect)
-				rend.SetDrawColor(0, 255, 0, 255)
 				rend.DrawRect(rect)
-				lastX = rect.X + rb.Width
+
+				var lastXCh int32 = rect.X
+				for _, cd := range rb.Children {
+					fwidth := int32(cd.Size * 8)
+					rend.SetDrawColor(255, 255, 255, 255)
+					rend.DrawRect(&sdl.Rect{lastXCh, 10, fwidth, rb.Height})
+					lastXCh += fwidth
+				}
+
+				lastX = rect.X + stWidth
 			}
 			img.SavePNG(surf, "test.png")
 
@@ -142,14 +174,16 @@ type Color struct {
 }
 
 type Block struct {
-	Width    int32
-	Height   int32
-	X        int32
-	Y        int32
+	Size     uint32
 	Label    string
 	Color    Color
 	Parent   *Block
 	Children []*Block
+
+	Width  int32
+	Height int32
+	X      int32
+	Y      int32
 }
 
 func (bc Block) Render(a, b, c int, d float64) (float64, error) {
