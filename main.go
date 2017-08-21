@@ -7,6 +7,7 @@ import (
 	"go/token"
 	//"go/types"
 	"github.com/veandco/go-sdl2/sdl"
+	"github.com/veandco/go-sdl2/sdl_image"
 	"reflect"
 	"runtime"
 	"time"
@@ -104,11 +105,20 @@ func Probe() {
 
 			surf, _ := sdl.CreateRGBSurface(0, 1024, 768, 32, 0x000000FF, 0x0000FF00, 0x00FF0000, 0xFF000000)
 			rend, _ := sdl.CreateSoftwareRenderer(surf)
+
+			rend.SetDrawColor(198, 40, 140, 255)
+			rend.FillRect(&sdl.Rect{0, 0, 1024, 768})
+
+			var lastX int32
 			for _, rb := range rootBlocks {
+				rect := &sdl.Rect{rb.X + lastX + 10, 10, rb.Width, rb.Height}
 				rend.SetDrawColor(rb.Color.R, rb.Color.G, rb.Color.B, rb.Color.A)
-				rect := &sdl.Rect{rb.X, rb.Y, rb.Width, rb.Height}
+				rend.FillRect(rect)
+				rend.SetDrawColor(0, 255, 0, 255)
 				rend.DrawRect(rect)
+				lastX = rect.X + rb.Width
 			}
+			img.SavePNG(surf, "test.png")
 
 			if tt.Tok.String() == "var" {
 				for _, sp := range tt.Specs {
