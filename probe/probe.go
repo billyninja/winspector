@@ -2,17 +2,20 @@ package probe
 
 import (
     "fmt"
+    "strings"
     "go/ast"
     "go/parser"
     "go/token"
     "github.com/veandco/go-sdl2/sdl"
     "github.com/veandco/go-sdl2/sdl_image"
     "runtime"
-    //  "github.com/veandco/go-sdl2/sdl_ttf"
+    "github.com/veandco/go-sdl2/sdl_ttf"
 )
 
 var TMAP map[string]uint32
 var rootBlocks []*Block
+
+const FSIZE = 14
 
 func Init() {
     TMAP = make(map[string]uint32)
@@ -30,6 +33,17 @@ func Init() {
 }
 
 func GenerateReport(f_ast *ast.File) {
+
+    ttf.Init()
+
+    _, cfile, _, _ := runtime.Caller(0)
+    path := strings.Replace(cfile, "probe.go", "../assets/fonts/Go-Regular.ttf", 1)
+    font, err := ttf.OpenFont(path, FSIZE)
+    if err != nil {
+        fmt.Printf(">>>>>>>> %v\n", err)
+        return
+    }
+
     for _, dc := range f_ast.Decls {
         switch tt := dc.(type) {
         case *ast.GenDecl:
@@ -64,6 +78,7 @@ func GenerateReport(f_ast *ast.File) {
                                     if val, ok := TMAP[id.String()]; ok {
                                         fldBlk.Size = val
                                         stBlk.Size += fldBlk.Size
+                                        fldBlk.Label = fmt.Sprintf("%s %s", fldBlk.Label, id.String())
                                     } else {
                                         fmt.Printf("\t\t\n >>>%s not found \n", id.String())
                                         complete = false
@@ -71,15 +86,15 @@ func GenerateReport(f_ast *ast.File) {
                                 case *ast.StarExpr:
                                     fldBlk.Size = TMAP["ptr"]
                                     stBlk.Size += fldBlk.Size
-                                    fldBlk.Label += " (ptr)"
+                                    fldBlk.Label = fmt.Sprintf("%s ptr", fldBlk.Label)
                                 case *ast.SliceExpr:
                                     fldBlk.Size = TMAP["slice"]
                                     stBlk.Size += fldBlk.Size
-                                    fldBlk.Label += " (slice)"
+                                    fldBlk.Label = fmt.Sprintf("%s slice", fldBlk.Label)
                                 case *ast.ArrayType:
                                     fldBlk.Size = TMAP["slice"]
                                     stBlk.Size += fldBlk.Size
-                                    fldBlk.Label += " (slice)"
+                                    fldBlk.Label = fmt.Sprintf("%s slice", fldBlk.Label)
                                 default:
                                     complete = false
                                     fmt.Printf("\nunknown expr %s\n\n", id)
@@ -117,18 +132,36 @@ func GenerateReport(f_ast *ast.File) {
 
             var lastX int32
             for _, rb := range rootBlocks {
-                stWidth := int32(rb.Size * 8)
+                stWidth := int32(rb.Size * FSIZE)
 
-                rect := &sdl.Rect{rb.X + lastX + 30, 10, stWidth, rb.Height}
+                rect := &sdl.Rect{rb.X + lastX + 30, 25, stWidth, rb.Height}
                 rend.SetDrawColor(rb.Color.R, rb.Color.G, rb.Color.B, rb.Color.A)
                 rend.FillRect(rect)
                 rend.DrawRect(rect)
 
+                labelSurf, _ := font.RenderUTF8_Blended_Wrapped(rb.Label, sdl.Color{255, 255, 255, 255}, int(stWidth))
+
+                labelText, _ := rend.CreateTextureFromSurface(labelSurf)
+                rend.Copy(
+                    labelText,
+                    &sdl.Rect{0, 0, labelSurf.W, labelSurf.H},
+                    &sdl.Rect{rect.X - 10, rect.Y - labelSurf.H, labelSurf.W, labelSurf.H},
+                )
+
                 var lastXCh int32 = rect.X
                 for _, cd := range rb.Children {
-                    fwidth := int32(cd.Size * 8)
+                    fwidth := int32(cd.Size * FSIZE)
                     rend.SetDrawColor(255, 255, 255, 255)
-                    rend.DrawRect(&sdl.Rect{lastXCh, 10, fwidth, rb.Height})
+                    rend.DrawRect(&sdl.Rect{lastXCh, 25, fwidth, rb.Height})
+
+                    labelSurf, _ := font.RenderUTF8_Blended_Wrapped(cd.Label, sdl.Color{255, 255, 255, 255}, int(fwidth))
+                    labelText, _ := rend.CreateTextureFromSurface(labelSurf)
+                    rend.Copy(
+                        labelText,
+                        &sdl.Rect{0, 0, labelSurf.W, labelSurf.H},
+                        &sdl.Rect{lastXCh + 5, rect.Y, labelSurf.W, labelSurf.H},
+                    )
+
                     lastXCh += fwidth
                 }
 
