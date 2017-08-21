@@ -1,12 +1,10 @@
 package main
 
 import (
-	"go/parser"
-    "go/token"
 	"github.com/billyninja/winspector/probe"
+	"go/parser"
+	"go/token"
 )
-
-
 
 func main() {
 	fset := token.NewFileSet() // positions are relative to fset
